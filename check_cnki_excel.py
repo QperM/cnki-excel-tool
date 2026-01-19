@@ -2,8 +2,7 @@ import os
 import threading
 import time
 import tkinter as tk
-from tkinter import scrolledtext, messagebox
-from tkinterdnd2 import DND_FILES, TkinterDnD
+from tkinter import scrolledtext, messagebox, filedialog
 import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -873,8 +872,8 @@ def process_excel(filepath, report_widget):
         driver.quit()
 
 
-# ======== GUI 部分：拖入 Excel + 报错窗口 ========
-class App(TkinterDnD.Tk):
+# ======== GUI 部分：文件选择 + 报错窗口 ========
+class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("知网 Excel 校验工具")
@@ -888,20 +887,17 @@ class App(TkinterDnD.Tk):
         )
         title_label.pack(pady=10)
         
-        # 拖拽区域
-        self.drop_label = tk.Label(
+        # 文件选择按钮
+        self.select_button = tk.Button(
             self,
-            text="将 Excel 文件（.xlsx/.xls）拖拽到这里开始校验\n\n文件需包含列：'发布时间' 和 '标题'",
-            relief="ridge",
-            width=80,
+            text="选择 Excel 文件开始校验\n\n文件需包含列：'发布时间' 和 '标题'",
+            command=self.select_file,
+            width=60,
             height=5,
             bg="#f0f0f0",
             font=("Arial", 10)
         )
-        self.drop_label.pack(pady=20)
-        
-        self.drop_label.drop_target_register(DND_FILES)
-        self.drop_label.dnd_bind("<<Drop>>", self.on_drop)
+        self.select_button.pack(pady=20)
         
         # 报错显示窗口
         report_label = tk.Label(self, text="校验结果：", font=("Arial", 10, "bold"))
@@ -924,17 +920,16 @@ class App(TkinterDnD.Tk):
         )
         tip_label.pack(pady=5)
     
-    def on_drop(self, event):
-        # event.data 可能是 '{C:\path\file.xlsx}' 形式
-        filepath = event.data.strip("{}").strip()
-        
-        if not os.path.isfile(filepath):
-            messagebox.showerror("文件错误", f"无法识别文件：{filepath}")
-            return
-        
-        if not filepath.lower().endswith((".xlsx", ".xls")):
-            messagebox.showerror("格式错误", "请拖入 Excel 文件（.xlsx 或 .xls）")
-            return
+    def select_file(self):
+        filepath = filedialog.askopenfilename(
+            title="请选择 Excel 文件",
+            filetypes=[
+                ("Excel 文件", "*.xlsx *.xls"),
+                ("所有文件", "*.*")
+            ]
+        )
+        if not filepath:
+            return  # 用户取消选择
         
         # 清空旧结果
         self.report.delete("1.0", tk.END)
@@ -955,3 +950,4 @@ class App(TkinterDnD.Tk):
 if __name__ == "__main__":
     app = App()
     app.mainloop()
+
