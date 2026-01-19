@@ -1,0 +1,83 @@
+name: Build macOS App
+
+on:
+  push:
+    tags:
+      - 'v*'  # 当推送以 v 开头的 tag 时触发，例如 v1.0.0
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  build:
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install system dependencies (for tkinter)
+      run: |
+        # macOS 通常自带 tkinter，但确保 Python 版本正确
+        python --version
+    
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Build macOS App with PyInstaller
+      run: |
+        pyinstaller --noconfirm \
+          --windowed \
+          --name "知网Excel校验工具" \
+          --icon=NONE \
+          --hidden-import=tkinter \
+          --hidden-import=tkinterdnd2 \
+          --hidden-import=pandas \
+          --hidden-import=openpyxl \
+          --hidden-import=xlrd \
+          --hidden-import=selenium \
+          --hidden-import=webdriver_manager \
+          --collect-all=tkinterdnd2 \
+          check_cnki_excel.py
+    
+    - name: Remove quarantine attribute (fix Gatekeeper)
+      run: |
+        xattr -dr com.apple.quarantine "dist/知网Excel校验工具.app" || true
+    
+    - name: Create DMG (optional - creates a disk image)
+      run: |
+        # 创建临时目录用于 DMG
+        mkdir -p dmg_temp
+        cp -R "dist/知网Excel校验工具.app" dmg_temp/
+        
+        # 创建 DMG（需要 hdiutil）
+        hdiutil create -volname "知网Excel校验工具" \
+          -srcfolder dmg_temp \
+          -ov -format UDZO \
+          "dist/知网Excel校验工具.dmg" || echo "DMG creation failed, continuing..."
+    
+    - name: Upload App artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: 知网Excel校验工具-macOS
+        path: |
+          dist/知网Excel校验工具.app
+          dist/*.dmg
+        retention-days: 30
+    
+    - name: Create Release (if tag)
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          dist/知网Excel校验工具.app
+          dist/*.dmg
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
