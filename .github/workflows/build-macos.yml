@@ -3,7 +3,7 @@ name: Build macOS App
 on:
   push:
     tags:
-      - 'v*'  # 当推送以 v 开头的 tag 时触发，例如 v1.0.0
+      - 'v*'  # 当推送以 v 开头的 tag 时触发
   workflow_dispatch:  # 允许手动触发
 
 jobs:
@@ -19,47 +19,44 @@ jobs:
       with:
         python-version: '3.11'
     
-    - name: Install system dependencies (for tkinter)
-      run: |
-        # macOS 通常自带 tkinter，但确保 Python 版本正确
-        python --version
-    
     - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        # 显式安装 pyinstaller 以确保其存在
+        pip install pandas selenium webdriver-manager openpyxl xlrd pyinstaller
+        # 如果你有 requirements.txt，也可以取消下面这行的注释
+        # pip install -r requirements.txt
     
     - name: Build macOS App with PyInstaller
       run: |
-        pyinstaller --noconfirm \
+        # 关键修改：使用 python -m PyInstaller 替代直接调用 pyinstaller
+        # 删除了代码中未出现的 tkinterdnd2 导入，减少报错风险
+        python -m PyInstaller --noconfirm \
           --windowed \
+          --onefile \
           --name "知网Excel校验工具" \
-          --icon=NONE \
+          --clean \
           --hidden-import=tkinter \
-          --hidden-import=tkinterdnd2 \
           --hidden-import=pandas \
           --hidden-import=openpyxl \
           --hidden-import=xlrd \
           --hidden-import=selenium \
           --hidden-import=webdriver_manager \
-          --collect-all=tkinterdnd2 \
           check_cnki_excel.py
     
     - name: Remove quarantine attribute (fix Gatekeeper)
       run: |
+        # 这里的路径需要对应 PyInstaller 生成的目录
         xattr -dr com.apple.quarantine "dist/知网Excel校验工具.app" || true
     
-    - name: Create DMG (optional - creates a disk image)
+    - name: Create DMG
       run: |
-        # 创建临时目录用于 DMG
         mkdir -p dmg_temp
         cp -R "dist/知网Excel校验工具.app" dmg_temp/
-        
-        # 创建 DMG（需要 hdiutil）
         hdiutil create -volname "知网Excel校验工具" \
           -srcfolder dmg_temp \
           -ov -format UDZO \
-          "dist/知网Excel校验工具.dmg" || echo "DMG creation failed, continuing..."
+          "dist/知网Excel校验工具.dmg" || echo "DMG creation failed"
     
     - name: Upload App artifact
       uses: actions/upload-artifact@v4
@@ -70,13 +67,12 @@ jobs:
           dist/*.dmg
         retention-days: 30
     
-    - name: Create Release (if tag)
+    - name: Create Release
       if: startsWith(github.ref, 'refs/tags/')
       uses: softprops/action-gh-release@v1
       with:
         files: |
-          dist/知网Excel校验工具.app
-          dist/*.dmg
+          dist/知网Excel校验工具.dmg
         draft: false
         prerelease: false
       env:
